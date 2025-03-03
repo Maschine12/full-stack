@@ -1,37 +1,40 @@
-// middleware.ts
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 export async function middleware(req: NextRequest) {
-    const token = req.cookies.get("token")?.value;
+    const token = req.headers.get("Authorization")?.split("Bearer ")[1] || req.cookies.get("token")?.value;
 
-    // Rutas protegidas (ajustar según sea necesario)
+    console.log("Token recibido en middleware:", token);
+
     const authRoutes = ["/dashboard", "/admin", "/perfil"];
     const isAuthRoute = authRoutes.some((route) => req.nextUrl.pathname.startsWith(route));
 
-    // Si la ruta requiere autenticación y no hay token, redirigir a login
     if (isAuthRoute && !token) {
+        console.log("No hay token, redirigiendo a login...");
         return NextResponse.redirect(new URL("/login", req.url));
     }
 
-    // Verificar el token si existe
     if (token) {
         try {
-            // Usamos jose para verificar el token
-            const secretKey = new TextEncoder().encode(process.env.JWT_SECRET); // Codificar la clave secreta
-            const { payload } = await jwtVerify(token, secretKey); // Verificar el token
+            const secretKey = new TextEncoder().encode(process.env.JWT_SECRET);
+            const { payload } = await jwtVerify(token, secretKey);
+            console.log("Token válido, payload:", payload);
 
-            // Redirigir usuarios según su rol
-            if (req.nextUrl.pathname.startsWith("/admin") && payload.role !== "admin") {
+            if (req.nextUrl.pathname.startsWith("/admin") && payload.role !== "cliente") {
+                console.log("No es admin, redirigiendo a dashboard...");
                 return NextResponse.redirect(new URL("/dashboard", req.url));
             }
 
-            if (req.nextUrl.pathname.startsWith("/trabajador") && payload.role !== "trabajador") {
-                return NextResponse.redirect(new URL("/dashboard", req.url));
+            if (req.nextUrl.pathname.startsWith("/dashboard") && payload.role === "admin") {
+                console.log("Un trabajador no puede acceder a dashboard, redirigiendo a perfil...");
+                return NextResponse.redirect(new URL("/perfil", req.url));
             }
+
         } catch (error) {
-            const errorMessage = encodeURIComponent(error instanceof Error ? error.message : "Ocurrió un error inesperado");
-            return NextResponse.redirect(new URL(`/login?error=${errorMessage}`, req.url));
+            console.error("Error verificando token:", error);
+            const response = NextResponse.redirect(new URL("/login", req.url));
+            response.cookies.delete("token");
+            return response;
         }
     }
 
@@ -39,6 +42,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/dashboard/:path*", "/admin/:path*", "/trabajador/:path*", "/perfil"],
-    runtime: 'nodejs',
+    matcher: ["/dashboard/:path*", "/admin/:path*", "/perfil/:path*"],
 };

@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -26,53 +26,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const router = useRouter();
 
     useEffect(() => {
-        const token = document.cookie.split("; ").find((row) => row.startsWith("token="))?.split("=")[1];
-        if (token) {
-            fetch("/api/auth/me", {
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                },
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.user) {
-                        setUser(data.user);
-                        setIsAuthenticated(true);
-                    }
-                })
-                .catch(() => {
+        console.log("🟡 Verificando sesión en /me...");
+        fetch("/api/auth/me", {
+            credentials: "include", // Asegura que las cookies sean enviadas
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    console.warn("🔴 No autorizado o sesión expirada");
                     setIsAuthenticated(false);
-                });
-        }
+                    return;
+                }
+                const data = await response.json();
+                console.log("🟢 Usuario autenticado:", data.user);
+                setUser(data.user);
+                setIsAuthenticated(true);
+            })
+            .catch((error) => {
+                console.error("🚨 Error en /me:", error);
+                setIsAuthenticated(false);
+            });
     }, []);
 
     const login = async (email: string, password: string) => {
+        console.log("🔵 Iniciando sesión...");
         const response = await fetch("/api/auth/login", {
             method: "POST",
             body: JSON.stringify({ email, password }),
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
         });
 
         const data = await response.json();
         if (response.ok) {
+            console.log("🟢 Login exitoso:", data.user);
             setUser(data.user);
             setIsAuthenticated(true);
             router.push("/dashboard"); // Redirigir después del login
         } else {
+            console.warn("🔴 Error en login:", data.message);
             alert(data.message || "Error en el inicio de sesión");
         }
     };
 
-    const logout = () => {
-        fetch("/api/auth/logout", {
+    const logout = async () => {
+        console.log("🔴 Cerrando sesión...");
+        await fetch("/api/auth/logout", {
             method: "POST",
-        }).then(() => {
-            setUser(null);
-            setIsAuthenticated(false);
-            router.push("/login"); // Redirigir después del logout
+            credentials: "include",
         });
+
+        console.log("✅ Logout exitoso");
+        setUser(null);
+        setIsAuthenticated(false);
+        router.push("/login"); // Redirigir después del logout
     };
 
     return (

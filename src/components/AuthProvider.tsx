@@ -1,7 +1,7 @@
+"use client";
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-// Definir tipos de usuario y contexto
 interface User {
     id: string;
     name: string;
@@ -18,7 +18,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Componente del contexto de autenticación
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -26,6 +25,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     useEffect(() => {
         const token = document.cookie.split("; ").find((row) => row.startsWith("token="))?.split("=")[1];
+        console.log("Token detectado en el cliente:", token);
+
         if (token) {
             fetch("/api/auth/me", {
                 headers: {
@@ -34,12 +35,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             })
                 .then((response) => response.json())
                 .then((data) => {
+                    console.log("Datos de /me:", data);
                     if (data.user) {
                         setUser(data.user);
                         setIsAuthenticated(true);
                     }
                 })
-                .catch(() => {
+                .catch((err) => {
+                    console.error("Error en /me:", err);
                     setIsAuthenticated(false);
                 });
         }
@@ -55,10 +58,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         const data = await response.json();
+        console.log("Datos recibidos en login:", data);
+
         if (response.ok) {
             setUser(data.user);
             setIsAuthenticated(true);
-            router.push("/dashboard"); // Redirigir después del login
+
+            // Esperar un pequeño tiempo para que el token en la cookie esté disponible
+            setTimeout(() => {
+                if (data.user.role === "cliente") {
+                    router.push("/dashboard");
+                } else if (data.user.role === "admin") {
+                    router.push("/admin");
+                } else {
+                    router.push("/perfil");w
+                }
+            }, 100);
         } else {
             alert(data.message || "Error en el inicio de sesión");
         }
@@ -70,7 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }).then(() => {
             setUser(null);
             setIsAuthenticated(false);
-            router.push("/login"); // Redirigir después del logout
+            router.push("/login");
         });
     };
 
@@ -81,7 +96,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 };
 
-// Hook para usar el contexto
 export const useAuth = (): AuthContextType => {
     const context = useContext(AuthContext);
     if (!context) {
