@@ -3,7 +3,6 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
-import { cookies } from "next/headers";
 
 export async function POST(req: NextRequest) {
     try {
@@ -24,27 +23,20 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ message: "Credenciales incorrectas" }, { status: 401 });
         }
 
+        // Generar token JWT
         const secretKey = new TextEncoder().encode(process.env.JWT_SECRET);
-        const token = await new SignJWT({ id: user._id, role: user.role })
+        const token = await new SignJWT({ id: user._id.toString(), role: user.role })
             .setProtectedHeader({ alg: "HS256" })
             .setIssuedAt()
             .setExpirationTime("1h")
             .sign(secretKey);
 
-        (await cookies()).set({
-            name: "token",
-            value: token,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            path: "/",
-            maxAge: 3600,
-        });
-
         return NextResponse.json({
             message: "Inicio de sesión exitoso",
-            user: { id: user._id, name: user.name, email: user.email, role: user.role },
+            token,
+            user: { id: user._id.toString(), email: user.email, role: user.role },
         });
+
     } catch (error) {
         console.error("Error en el login:", error);
         return NextResponse.json({ message: "Error en el servidor" }, { status: 500 });

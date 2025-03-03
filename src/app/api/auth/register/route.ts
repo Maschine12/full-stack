@@ -6,28 +6,20 @@ import User from "@/models/User";
 
 export async function POST(req: NextRequest) {
     await connectDB();
-    const {email, password, role } = await req.json();
+    const { email, password, role } = await req.json();
 
-    // Validación básica
     if (!email || !password || !role) {
         return NextResponse.json({ message: "Todos los campos son obligatorios" }, { status: 400 });
     }
 
-    // Comprobar si el usuario ya existe
     const existingUser = await User.findOne({ email });
     if (existingUser) {
         return NextResponse.json({ message: "El correo ya está registrado" }, { status: 400 });
     }
 
-    // Encriptar la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear nuevo usuario
-    const newUser = new User({
-        email,
-        password: hashedPassword,
-        role,
-    });
+    const newUser = new User({ email, password: hashedPassword, role });
 
     try {
         await newUser.save();
@@ -37,27 +29,12 @@ export async function POST(req: NextRequest) {
             expiresIn: "1h",
         });
 
-        const response = NextResponse.json({
+        return NextResponse.json({
             message: "Registro exitoso",
-            user: { id: newUser._id, name: newUser.name, email: newUser.email, role: newUser.role },
+            token,  // El frontend debe almacenar este token
+            user: { id: newUser._id, email: newUser.email, role: newUser.role },
         });
-
-        // Configurar la cookie
-        response.cookies.set({
-            name: "token",
-            value: token,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            maxAge: 3600, // 1 hora
-            path: "/",
-        });
-
-        return response;
     } catch (error) {
-        return NextResponse.json(
-            { message: "Error al registrar usuario", error: error instanceof Error ? error.message : String(error) },
-            { status: 500 }
-        );
+        return NextResponse.json({ message: "Error al registrar usuario" }, { status: 500 });
     }
-
 }
